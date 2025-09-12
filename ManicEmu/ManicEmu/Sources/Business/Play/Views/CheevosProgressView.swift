@@ -17,14 +17,14 @@ class CheevosProgressView: RoundAndBorderView {
     private let titleLabel: UILabel = {
         let view = UILabel()
         view.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        view.textColor = .white
+        view.textColor = Constants.Color.LabelPrimary
         view.minimumScaleFactor = 0.5
         return view
     }()
     
     init() {
         super.init(roundCorner: .allCorners, radius: 16, borderColor: Constants.Color.Border, borderWidth: 1)
-        makeBlur(blurRadius: 2.5, blurColor: .white, blurAlpha: 0.4)
+        makeBlur(blurRadius: 2.5, blurColor: Constants.Color.BackgroundPrimary, blurAlpha: 0.4)
         
         enableInteractive = true
         
@@ -88,16 +88,18 @@ class CheevosProgressView: RoundAndBorderView {
         
         for (index, subView) in containerView.subviews.enumerated() {
             subView.alpha = (subView == hightLightView ? 1 : 0.5)
-            subView.snp.remakeConstraints { make in
-                make.top.bottom.equalToSuperview().inset(4)
-                make.size.equalTo(24)
-                if index == 0 {
-                    make.leading.equalToSuperview()
-                } else {
-                    make.leading.equalTo(containerView.subviews[index-1].snp.trailing).offset(4)
-                }
-                if index == containerView.subviews.count - 1 {
-                    make.trailing.equalToSuperview()
+            if remakeConstraints {
+                subView.snp.remakeConstraints { make in
+                    make.top.bottom.equalToSuperview().inset(4)
+                    make.size.equalTo(24)
+                    if index == 0 {
+                        make.leading.equalToSuperview()
+                    } else {
+                        make.leading.equalTo(containerView.subviews[index-1].snp.trailing).offset(4)
+                    }
+                    if index == containerView.subviews.count - 1 {
+                        make.trailing.equalToSuperview()
+                    }
                 }
             }
         }
