@@ -11,11 +11,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
 
       - name: Select Xcode 16
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode_16*.app | head -n1)
           sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+
+      - name: Configure Git auth for GitHub (incl. LFS)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git lfs install --system || true
+          git lfs install || true
+          # Route all https://github.com/* clones through a tokenized URL
+          git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          # Optional: speed up, avoid interactive prompts
+          git config --global credential.helper store
+          git config --global advice.detachedHead false
 
       - name: Install Ruby and CocoaPods
         uses: ruby/setup-ruby@v1
