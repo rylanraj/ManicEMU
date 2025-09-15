@@ -1,0 +1,60 @@
+name: build-ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app | head -n1)
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+
+      - name: Install Ruby and CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: sudo gem install cocoapods --no-document
+
+      - name: Install Pods
+        working-directory: ManicEmu
+        run: pod install --repo-update
+
+      - name: Resolve SPM
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace ManicEmu/ManicEmu.xcworkspace \
+            -scheme ManicEmu
+
+      - name: Archive (SideloadRelease)
+        run: |
+          xcodebuild \
+            -workspace ManicEmu/ManicEmu.xcworkspace \
+            -scheme ManicEmu \
+            -configuration SideloadRelease \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            clean archive \
+            -archivePath $PWD/build/ManicEmu.xcarchive \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Create unsigned .ipa
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/ManicEmu.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -n1)
+          cp -R "$APP_PATH" Payload/
+          zip -r ManicEmu-unsigned.ipa Payload -x "*.DS_Store"
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManicEmu-unsigned-ipa
+          path: ManicEmu-unsigned.ipa

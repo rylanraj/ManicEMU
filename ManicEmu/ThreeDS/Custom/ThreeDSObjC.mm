@@ -12,6 +12,8 @@
 #import "EmulationWindow_Vulkan.h"
 
 #include <Metal/Metal.hpp>
+#include <algorithm>
+#include <cctype>
 
 #import "CameraFactory.h"
 #import "InputManager.h"
@@ -350,6 +352,83 @@ static void TryShutdown() {
     auto app_loader = Loader::GetLoader([url.path UTF8String]);
     if (app_loader) {
         app_loader->ReadProgramId(program_id);
+    }
+
+    // Apply per-title performance overrides (Fire Emblem Fates)
+    auto is_fates_title_id = [](u64 tid) {
+        // Known Fire Emblem Fates Title IDs (USA). Extend as needed for other regions.
+        // Birthright: 0004000000179800
+        // Conquest:   0004000000179900
+        // Special:    0004000000179A00
+        constexpr u64 BR_US = 0x0004000000179800ULL;
+        constexpr u64 CQ_US = 0x0004000000179900ULL;
+        constexpr u64 SE_US = 0x0004000000179A00ULL;
+        switch (tid) {
+            case BR_US:
+            case CQ_US:
+            case SE_US:
+                return true;
+            default:
+                return false;
+        }
+    };
+
+    auto string_contains_ci = [](const std::string& haystack, const std::string& needle) {
+        auto to_lower = [](std::string s) {
+            std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return s;
+        };
+        return to_lower(haystack).find(to_lower(needle)) != std::string::npos;
+    };
+
+    bool is_fates = is_fates_title_id(program_id);
+    if (!is_fates) {
+        // Fallback to SMDH title string detection (covers other regions/localizations)
+        const auto smdh_data = InformationForGame::GetSMDHData([url.path UTF8String]);
+        if (!smdh_data.empty()) {
+            const auto title_u16 = InformationForGame::Title(smdh_data);
+            std::string title_utf8;
+            title_utf8.reserve(title_u16.size());
+            for (char16_t ch : title_u16) {
+                if (ch == u'\0') break;
+                // naive narrowing for ASCII subset; SMDH English title should fit.
+                title_utf8.push_back(static_cast<char>(ch & 0xFF));
+            }
+            if (string_contains_ci(title_utf8, "Fates") || string_contains_ci(title_utf8, "Fire Emblem")) {
+                // Extra heuristic: many localized titles still contain "Fire Emblem".
+                is_fates = string_contains_ci(title_utf8, "Fates") || string_contains_ci(title_utf8, "if");
+            }
+        }
+    }
+
+    if (is_fates) {
+        // Force single-eye rendering and enable async/shader caching to smooth transition spikes
+    NSLog(@"Applying Fire Emblem Fates performance profile (program_id=0x%016llX)", (unsigned long long)program_id);
+        // Prefer single-eye path even if user slider is 0% to avoid building both eyes.
+        Settings::values.disable_right_eye_render.SetValue(true);
+        Settings::values.factor_3d.SetValue(0); // ensure no stereo separation
+        // If StereoRenderOption is available, prefer Off
+        Settings::values.render_3d.SetValue(Settings::StereoRenderOption::Off);
+        
+        // Async shader compilation and presentation reduce stalls
+        Settings::values.async_shader_compilation.SetValue(true);
+        Settings::values.async_presentation.SetValue(true);
+        Settings::values.use_disk_shader_cache.SetValue(true);
+        Settings::values.use_shader_jit.SetValue(true);
+        Settings::values.use_hw_shader.SetValue(true);
+        Settings::values.spirv_shader_gen.SetValue(true);
+        
+        // Avoid long vsync-induced stalls on iOS
+        Settings::values.use_vsync_new.SetValue(false);
+        
+        // Clamp internal resolution for heavy transitions if user set it very high
+        const u32 current_res = Settings::values.resolution_factor.GetValue();
+        if (current_res > 2) {
+            Settings::values.resolution_factor.SetValue(2); // 2x max for this title by default
+        }
+        
+        // Preload textures can help when transitions pull many 2D assets
+        Settings::values.preload_textures.SetValue(true);
     }
     
     system.ApplySettings();
