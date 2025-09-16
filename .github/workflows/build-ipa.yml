@@ -24,13 +24,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git lfs install --system || true
-          git lfs install || true
+          git lfs install --system --skip-smudge || true
+          git lfs install --skip-smudge || true
           # Route all https://github.com/* clones through a tokenized URL
           git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
           # Optional: speed up, avoid interactive prompts
           git config --global credential.helper store
           git config --global advice.detachedHead false
+          # Provide a fallback credential via netrc for Git/LFS
+          printf "machine github.com\n  login x-access-token\n  password %s\nmachine api.github.com\n  login x-access-token\n  password %s\n" "$GH_TOKEN" "$GH_TOKEN" >> ~/.netrc
+          chmod 0600 ~/.netrc
 
       - name: Install Ruby and CocoaPods
         uses: ruby/setup-ruby@v1
@@ -40,6 +43,8 @@ jobs:
 
       - name: Install Pods
         working-directory: ManicEmu
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
         run: pod install --repo-update
 
       - name: Resolve SPM
