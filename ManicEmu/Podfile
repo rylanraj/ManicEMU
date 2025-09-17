@@ -41,7 +41,7 @@ target 'ManicEmu' do
   pod 'NVActivityIndicatorView', '~> 5.2'
   pod 'SideMenu', '~> 6.5'
   pod 'VisualEffectView', '~> 5.0'
-  pod 'FluentDarkModeKit', '~> 1.0.4'
+  # pod 'FluentDarkModeKit', '~> 1.0.4'  # Disabled: uses Git LFS, causes CI auth issues
   pod "Device", :git => 'https://github.com/LeeAoshuang/Device.git', :branch => 'master'
   pod 'SFSafeSymbols', '~> 5.0'
   pod "Haptica", '~> 3.0'
